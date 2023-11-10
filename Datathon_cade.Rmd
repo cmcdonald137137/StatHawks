@@ -1,0 +1,98 @@
+---
+title: "Cade_Model"
+author: "Cade McDonald"
+date: "2023-11-10"
+output: html_document
+---
+```{r}
+# Install and load the haven package if not already installed
+if (!requireNamespace("dplyr", quietly = TRUE)) {
+    install.packages("hdplyr", dependencies = TRUE)
+}
+if (!requireNamespace("haven", quietly = TRUE)) {
+    install.packages("haven", dependencies = TRUE)
+}
+library(dplyr)
+library(haven)
+
+# Specify the paths to your XPT files
+
+path_p_heq <- "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/P_HEQ.XPT"
+path_p_imq <- "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/P_IMQ.XPT"
+path_p_demo <- "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/P_DEMO.XPT"
+
+p_heq <- haven::read_xpt(path_p_heq)
+p_imq <- haven::read_xpt(path_p_imq)
+p_demo <- haven::read_xpt(path_p_demo)
+# Combine the datasets based on the SEQN column
+# You can use the merge function or dplyr's left_join function
+combined_data <- merge(merge(p_heq, p_imq, by = "SEQN", all.x = TRUE), p_demo, by = "SEQN", all.x = TRUE)
+
+# Filter the combined data
+filtered_data <- combined_data %>%
+  filter(!is.na(HEQ010))
+
+
+# Print the first few rows of the filtered data
+head(filtered_data)
+
+# Print the first few rows of the combined dataset
+head(combined_data)
+
+
+
+# Read in the XPT files
+path_p_heq_67 <-  "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/HEQ_I_201617.XPT"
+path_p_imq_67<- "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/IMQ_I_201617.XPT"
+path_p_demo_67 <- "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/DEMO_I_201617.XPT"
+p_heq_67 <- haven::read_xpt(path_p_heq_67)
+p_imq_67 <- haven::read_xpt(path_p_imq_67)
+p_demo_67 <- haven::read_xpt(path_p_demo_67)
+# Combine the datasets based on the SEQN column
+# You can use the merge function or dplyr's left_join function
+combined_data_67 <- merge(merge(p_heq_67, p_imq_67, by = "SEQN", all.x = TRUE), p_demo_67, by = "SEQN", all.x = TRUE)
+
+# Filter the combined data
+filtered_data_67 <- combined_data_67 %>%
+  filter(!is.na(HEQ010))
+
+# Print the first few rows of the filtered data
+head(filtered_data_67)
+
+# Print the first few rows of the combined dataset
+head(combined_data_67)
+length(combined_data_67)
+length(combined_data)
+
+# Assuming combined_data_67 and combined_data have the same structure
+
+# Assuming combined_data_67 and combined_data have the same structure
+```
+
+```{r}
+
+# Identify common columns
+common_columns <- intersect(names(combined_data_67), names(combined_data))
+
+# Add missing rows using bind_rows
+combined_data_full <- bind_rows(
+  select(combined_data_67, all_of(common_columns)),
+  select(combined_data, all_of(common_columns))
+)
+
+# View the first few rows of the final combined dataset
+combined_data_full
+# Filter the combined data
+#filtered_data_full <- combined_data_full %>%
+  #filter(!is.na(HEQ010))
+#filtered_data_full
+```
+```{r}
+# Assuming combined_data_full is your combined dataset
+missing_counts <- colSums(is.na(combined_data_full))
+
+# Display the counts of missing values for each column
+print(missing_counts)
+head(p_imq)
+head(p_imq_67)
+```
