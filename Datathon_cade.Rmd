@@ -80,19 +80,118 @@ combined_data_full <- bind_rows(
   select(combined_data, all_of(common_columns))
 )
 
+combined_data_full <- combined_data_full
+
 # View the first few rows of the final combined dataset
-combined_data_full
+combined_data_full <- dplyr::select(combined_data_full, -RIDAGEMN) #all na's
+
+combined_data_full <- dplyr::select(combined_data_full, -HEQ040, -HEQ030) #hepatitis C Measure
+combined_data_full <- dplyr::select(combined_data_full, -IMQ011, -IMQ070, -IMQ060, -IMQ090, -IMQ100, -DMDBORN4)
+combined_data_full <- dplyr::select(combined_data_full, -FIAPROXY, -FIAINTRP, -MIALANG, -MIAPROXY, -FIALANG, -SIAPROXY, -SIAINTRP, -MIAINTRP, -AIALANGA, -RIDEXPRG, -RIDRETH1, -SIALANG)
+#HepA, HPVF, HPVM, age first hpv dose, Received HPV Doses 
+combined_data_full$HEQ010 <- ifelse(combined_data_full$HEQ010 == 1, 0, 1)
+# Bad Predictor: SDDSRVYR, RIDSTATR, RIDAGEMN(Less than 25 months old), RIDEXAGM(less than 240 months old), 
+# MDBORN4(country born in), DMDCITZN( citizenship status), SIAPROXY: Proxy respondant, FIALANG: language used in home,
+#Bad: FIAPROXY: proxy resident used in family interview, FIAINTRP: interpreter used, MIALANG: Language english or spanish, MIAPROXY: proxy respondent used udring the CPAI portion of the MEC interview, 
+#Questional predictors: DMDMARTL(Marital Status), RIDEXPRG(Pregnancy Status), DMDYRSUS(years lived in the USA),DMQMILIZ: Military Status, DMQADFC: Active duty serving, SIALANG: language used
+#Okay: DMDEDUC3: 6-19 year old education level, DMDEDUC2:20 or older education level, INDFMPIR: family income to poverty. 
+combined_data_full 
 # Filter the combined data
 #filtered_data_full <- combined_data_full %>%
   #filter(!is.na(HEQ010))
 #filtered_data_full
-```
-```{r}
-# Assuming combined_data_full is your combined dataset
 missing_counts <- colSums(is.na(combined_data_full))
 
 # Display the counts of missing values for each column
-print(missing_counts)
-head(p_imq)
-head(p_imq_67)
+
+#SEQN ID Number
+#HEQ010 Ever told if had HEPB
+#HEQ020 Ever diagnosed HEPB Drugs
+#IMQ020 HEPB Vaccination Status
+#SDDSRVYR Data release cycle
+#RIDSTATR Interview Status
+#RIAGENDR Gender 1=male 2= female
+#RIDAGEYR age at screening
+#RIDRETH1 RACE, asian not included, RIDRETH3 RACE asian included take out ridreth1
+#RIDEXMON - Six month time period 1	November 1 through April 30 2	May 1 through October 31 #BAD PREDICTOR
+#DMDEDUC2 Education level adults 20+ 
+#SDMVPSU - Masked variance pseudo-PSU
+#SDMVSTRA - Masked variance pseudo-stratum
+#INDFMPIR - Ratio of family income to poverty 0 to 4.99	Range of Values 5	Value greater than or equal to 5.00 .	Missing
+``` 
+
+
+```{r}
+# Assuming combined_data_full is your dataset
+if (!requireNamespace("mice", quietly = TRUE)) {
+  install.packages("mice")
+}
+library(mice)
+
+# Impute missing values
+imputed_data <- complete(mice(combined_data_full))
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(imputed_data, use = "complete.obs")
+
+if (!requireNamespace("corrplot", quietly = TRUE)) {
+  install.packages("corrplot")
+}
+library(corrplot)
+
+# Plot the correlation matrix
+corrplot(correlation_matrix, method = "color")
+
 ```
+
+```{r}
+library(glmnet)
+```
+
+```{r}
+dfm<- combined_data_full
+dfm<- dfm %>%
+  mutate_if(is.character, as.factor)
+# convert factor variables to dummies
+
+# # Loop through each variable to check if it is a factor for training dataset
+
+for (col in names(dfm)) {
+  if (is.factor(dfm[[col]])) {
+    # Create dummy variables
+    dummies <- model.matrix(~ dfm[[col]] - 1)
+    # Generate new column names without the 'dfm[[col]]' part
+    level_names <- levels(dfm[[col]])
+    new_colnames <- paste(col, level_names, sep = "_")
+    colnames(dummies) <- new_colnames
+    
+    # Bind the dummy variables to the original dataframe (minus the original factor)
+    dfm <- cbind(dfm, dummies)
+    
+    # Drop the original factor column
+    dfm[[col]] <- NULL
+  }
+}
+set.seed(5400)
+train_index <- sample(1:nrow(dfm), 0.7 * nrow(dfm)) # Adjust 0.7 to change the train-test split ratio
+
+# Create new train and test subsets
+train_dfm <- dfm[train_index, ]
+test_dfm <- dfm[-train_index, ]
+# Prepare the data for the HEQ010  model
+train <- train_dfm
+test <- test_dfm
+
+# Train the glm model for HEQ010 
+log_model <- glm(HEQ010 ~ ., family = binomial(link = "logit"), data = train)
+# Evaluate the model on the new test subset
+log_pred_HEQ010_test <- predict(log_model, newdata = test, type = "response")
+test$HEQ010 <- ifelse(log_pred_HEQ010_test > 0.5, 1, 0)
+
+# Calculate accuracy for the 'HEQ010 ' binary classification
+actual_HEQ010  <- test_dfm$HEQ010 
+predicted_HEQ010  <- test_dfm$HEQ010 
+accuracy_HEQ010  <- mean(actual_HEQ010  == predicted_HEQ010 )
+print(paste("Accuracy for 'HEQ010 ':", accuracy_HEQ010 ))
+```
+
