@@ -87,9 +87,9 @@ combined_data_full <- dplyr::select(combined_data_full, -RIDAGEMN) #all na's
 
 combined_data_full <- dplyr::select(combined_data_full, -HEQ040, -HEQ030) #hepatitis C Measure
 combined_data_full <- dplyr::select(combined_data_full, -IMQ011, -IMQ070, -IMQ060, -IMQ090, -IMQ100, -DMDBORN4)
-combined_data_full <- dplyr::select(combined_data_full, -FIAPROXY, -FIAINTRP, -MIALANG, -MIAPROXY, -FIALANG, -SIAPROXY, -SIAINTRP, -MIAINTRP, -AIALANGA, -RIDEXPRG, -RIDRETH1, -SIALANG)
+combined_data_full <- dplyr::select(combined_data_full, -FIAPROXY, -FIAINTRP, -MIALANG, -MIAPROXY, -FIALANG, -SIAPROXY, -SIAINTRP, -MIAINTRP, -AIALANGA, -RIDEXPRG, -RIDRETH1, -SIALANG, -RIDEXMON)
 #HepA, HPVF, HPVM, age first hpv dose, Received HPV Doses 
-combined_data_full$HEQ010 <- ifelse(combined_data_full$HEQ010 == 1, 0, 1)
+combined_data_full$HEQ010 <- ifelse(combined_data_full$HEQ010 == 1, 1, 0)
 # Bad Predictor: SDDSRVYR, RIDSTATR, RIDAGEMN(Less than 25 months old), RIDEXAGM(less than 240 months old), 
 # MDBORN4(country born in), DMDCITZN( citizenship status), SIAPROXY: Proxy respondant, FIALANG: language used in home,
 #Bad: FIAPROXY: proxy resident used in family interview, FIAINTRP: interpreter used, MIALANG: Language english or spanish, MIAPROXY: proxy respondent used udring the CPAI portion of the MEC interview, 
@@ -118,6 +118,14 @@ missing_counts <- colSums(is.na(combined_data_full))
 #SDMVPSU - Masked variance pseudo-PSU
 #SDMVSTRA - Masked variance pseudo-stratum
 #INDFMPIR - Ratio of family income to poverty 0 to 4.99	Range of Values 5	Value greater than or equal to 5.00 .	Missing
+# Specify the variables to be converted to factors
+factor_vars <- c("HEQ010", "HEQ020", "IMQ020", "SDDSRVYR", "RIDSTATR", "RIAGENDR", "RIDRETH3", "DMDEDUC2")
+
+# Convert the specified variables to factors
+combined_data_full[factor_vars] <- lapply(combined_data_full[factor_vars], factor)
+
+# Verify the changes
+str(combined_data_full)
 ``` 
 
 
@@ -149,41 +157,151 @@ library(glmnet)
 ```
 
 ```{r}
-dfm<- combined_data_full
-dfm<- dfm %>%
-  mutate_if(is.character, as.factor)
+# Specify the columns to be excluded
+exclude_columns <- c('SEQN', "SDDSRVYR", "RIDSTATR", "SDMVPSU", "SDMVSTRA")
+
+# Create a new data frame excluding the specified columns
+dfm <- combined_data_full[, !(names(combined_data_full) %in% exclude_columns)]
+
+# Verify the changes
+str(dfm)
+```
+```{r}
+set.seed(5400)
+
+# Create train and test subsets
+train_index <- sample(1:nrow(dfm), 0.7 * nrow(dfm))
+train_dfm <- dfm[train_index, ]
+test_dfm <- dfm[-train_index, ]
+levels(train_dfm$IMQ020)
+levels(test_dfm$IMQ020)
+# Ensure that levels in test set match levels in training set
+test_dfm$IMQ020 <- factor(test_dfm$IMQ020, levels = levels(train_dfm$IMQ020))
+# Specify the variables
+selected_vars <- c("HEQ020", "IMQ020", "RIAGENDR", "RIDRETH3", "DMDEDUC2", "INDFMPIR", "RIDAGEYR")
+
+# Check if all selected variables are present in dfm
+missing_vars <- setdiff(selected_vars, colnames(dfm))
+
+if (length(missing_vars) > 0) {
+  stop(paste("The following variables are missing in dfm:", paste(missing_vars, collapse = ", ")))
+}
+
+# Convert response variable to factor with 2 levels
+train_dfm$HEQ010 <- as.factor(train_dfm$HEQ010)
+test_dfm$HEQ010 <- as.factor(test_dfm$HEQ010)
+
+# Fit logistic regression model on the training set
+logit_model <- glm(HEQ010 ~ ., data = train_dfm[, c("HEQ010", selected_vars), drop = FALSE], family = "binomial")
+
+# Predict on the test set
+test_probabilities <- predict(logit_model, newdata = test_dfm, type = "response")
+
+# Convert probabilities to binary predictions
+test_predictions <- ifelse(test_probabilities > 0.5, 1, 0)
+
+# Evaluate the model (you can replace this with your specific evaluation metric)
+# For example, you can use accuracy
+accuracy <- mean(test_predictions == as.numeric(test_dfm$HEQ010))
+
+# Display the accuracy
+cat("Accuracy on Test Set:", accuracy, "\n")
+
+# Display summary of the logistic regression model
+summary(logit_model)
+
+```
 # convert factor variables to dummies
 
 # # Loop through each variable to check if it is a factor for training dataset
+```{r}
+dummy_df <- data.frame()
 
 for (col in names(dfm)) {
   if (is.factor(dfm[[col]])) {
+    # Replace missing values with a placeholder (e.g., "NA")
+    dfm[[col]] <- as.character(dfm[[col]])
+    dfm[[col]][is.na(dfm[[col]])] <- "NA"
+    
     # Create dummy variables
     dummies <- model.matrix(~ dfm[[col]] - 1)
-    # Generate new column names without the 'dfm[[col]]' part
-    level_names <- levels(dfm[[col]])
-    new_colnames <- paste(col, level_names, sep = "_")
-    colnames(dummies) <- new_colnames
     
-    # Bind the dummy variables to the original dataframe (minus the original factor)
-    dfm <- cbind(dfm, dummies)
+    # Check the dimensions of the dummy variables
+    if (ncol(dummies) > 0) {
+      # Extract dummy variable columns
+      dummy_cols <- dummies[, -1, drop = FALSE]
+      
+      # Bind the dummy variables to the dummy dataframe
+      dummy_df <- cbind(dummy_df, dummy_cols)
+    }
     
     # Drop the original factor column
     dfm[[col]] <- NULL
   }
 }
-set.seed(5400)
-train_index <- sample(1:nrow(dfm), 0.7 * nrow(dfm)) # Adjust 0.7 to change the train-test split ratio
 
-# Create new train and test subsets
+# Bind the dummy dataframe to the original dataframe
+dfm <- cbind(dfm, dummy_df)
+
+# Ensure the number of rows match
+n_rows_original <- nrow(dfm)
+n_rows_dummy <- nrow(dummy_df)
+
+# Check if the number of rows match
+if (n_rows_original != n_rows_dummy) {
+  stop("Number of rows in dummy variables does not match the original dataframe.")
+}
+
+
+# Ensure the number of rows match
+n_rows_original <- nrow(dfm)
+n_rows_dummy <- nrow(dummies)
+
+# Check if the number of rows match
+if (n_rows_original != n_rows_dummy) {
+  stop("Number of rows in dummy variables does not match the original dataframe.")
+}
+
+# Split the data into training and testing sets
+set.seed(5400)
+train_index <- sample(1:nrow(dfm), 0.7 * nrow(dfm))
 train_dfm <- dfm[train_index, ]
 test_dfm <- dfm[-train_index, ]
-# Prepare the data for the HEQ010  model
+
+# Prepare the data for the HEQ010 model
 train <- train_dfm
 test <- test_dfm
+head(train)
+```
 
+
+```{r}
+if (!requireNamespace("caret", quietly = TRUE)) {
+  install.packages("caret")
+}
+library(caret)
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+library(ggplot2)
+if (!requireNamespace("lattice", quietly = TRUE)) {
+  install.packages("lattice")
+}
+library(lattice)
+cor_matrix <- cor(train[, -which(names(train) == "HEQ010")])
+high_corr_pairs <- findCorrelation(cor_matrix, cutoff = 0.8)
+```
+
+```{r}
+#cor_matrix
+#high_corr_pairs
+zero_sd_vars <- sapply(train, function(x) sd(x, na.rm = TRUE)) == 0
+print(names(zero_sd_vars)[zero_sd_vars])
+```
+
+```{r}
 # Train the glm model for HEQ010 
-log_model <- glm(HEQ010 ~ ., family = binomial(link = "logit"), data = train)
+log_model <- glm(HEQ010 ~ ., family = binomial(link = "logit"), data = train, maxit = 10000000000)
 # Evaluate the model on the new test subset
 log_pred_HEQ010_test <- predict(log_model, newdata = test, type = "response")
 test$HEQ010 <- ifelse(log_pred_HEQ010_test > 0.5, 1, 0)
