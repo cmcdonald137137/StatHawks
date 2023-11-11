@@ -115,7 +115,57 @@ factor_vars <- c("HEQ010", "IMQ020", "SDDSRVYR", "RIDSTATR", "RIAGENDR", "RIDRET
 combined_data_full[factor_vars] <- lapply(combined_data_full[factor_vars], factor)
 table(combined_data_full$HEQ010)
 ``` 
+```{r}
+# Previous Model from Computational
+selected_vars <- c("IMQ020", "RIAGENDR", "RIDAGEYR", "RIDRETH3", "DMDEDUC2", "INDFMPIR", "HEQ010")
+dfm <- combined_data_full[selected_vars]
 
+# Convert categorical variables to dummy/indicator variables
+dfm <- model.matrix(~ . - 1, data = dfm)
+colnames(dfm)[colnames(dfm) == "HEQ0101"] <- "HEQ010"
+# Assuming dfm is your full dataset
+set.seed(123)  # for reproducibility
+train_index <- sample(1:nrow(dfm), 0.7 * nrow(dfm))
+
+# Create new train and test subsets
+train_dfm <- dfm[train_index, ]
+train_dfm <- as.data.frame(train_dfm)
+test_dfm <- dfm[-train_index, ]
+test_dfm <- as.data.frame(test_dfm)
+head(test_dfm)
+test_heq <- subset(test_dfm, select = -c(HEQ010))
+log_model_heq <- glm(HEQ010 ~ ., family = binomial(link = "logit"), data = train_dfm)
+
+# Predict on the test set
+log_pred_heq_test <- predict(log_model_heq, newdata = test_dfm, type = "response")
+
+# Convert predicted probabilities to binary predictions
+threshold <- 0.02
+test_dfm$pred_heq <- ifelse(log_pred_heq_test > threshold, 1, 0)
+
+# Calculate accuracy for the 'heq' binary classification
+accuracy_heq <- mean(test_dfm$HEQ010 == test_dfm$pred_heq, na.rm = TRUE)
+print(paste("Accuracy for 'heq':", accuracy_heq))
+# Install and load the caret package if not already installed
+if (!requireNamespace("caret", quietly = TRUE)) {
+  install.packages("caret")
+}
+library(caret)
+
+# ... (previous code)
+
+# Calculate accuracy for the 'heq' binary classification
+accuracy_heq <- mean(test_dfm$HEQ010 == test_dfm$pred_heq, na.rm = TRUE)
+print(paste("Accuracy for 'heq':", accuracy_heq))
+
+# Create a confusion matrix
+conf_matrix_heq <- confusionMatrix(data = factor(test_dfm$pred_heq, levels = c(0, 1)),
+                                   reference = factor(test_dfm$HEQ010, levels = c(0, 1)))
+
+# Print the confusion matrix
+print("Confusion Matrix:")
+print(conf_matrix_heq)
+```
 
 ```{r}
 # Assuming combined_data_full is your dataset
@@ -164,58 +214,9 @@ dfm
 table(dfm$HEQ010)
 ```
 
+###Selecting the best model
 
-```{r}
-# Install and load the randomForest package
-install.packages("randomForest")
-library(randomForest)
-# Install and load the mice package
-install.packages("mice")
-library(mice)
-
-# Select variables of interest
-selected_vars <- c("IMQ020", "RIAGENDR", "RIDAGEYR", "RIDRETH3", "DMDEDUC2", "INDFMPIR", "HEQ010")
-
-# Subset data with selected variables
-rfdf <- dfm[selected_vars]
-
-# Set seed for reproducibility
-set.seed(5400)
-
-# Impute missing values using mice
-imputed_data <- mice(rfdf, method = "rf")  # You can use different imputation methods
-
-# Create an index for splitting the data
-train_index <- sample(1:nrow(rfdf), 0.8 * nrow(rfdf))
-
-# Split the data into training and testing sets
-train_data <- complete(imputed_data, action = 1)[train_index, ]
-test_data <- complete(imputed_data, action = 1)[-train_index, ]
-
-# Assuming your response variable is named "HEQ010"
-response_column <- "HEQ010"
-
-# Create a Random Forest model
-rf_model <- randomForest(formula = as.formula(paste(response_column, "~ .")), data = train_data)
-
-# Print the summary of the model
-print(rf_model)
-
-# Make predictions on the training set
-train_predictions <- predict(rf_model, newdata = train_data)
-
-# Print confusion matrix for the training set
-conf_matrix_train <- table(train_data$HEQ010, train_predictions)
-print(conf_matrix_train)
-
-# Make predictions on the test set
-test_predictions <- predict(rf_model, newdata = test_data)
-
-# Print confusion matrix for the test set
-conf_matrix_test <- table(test_data$HEQ010, test_predictions)
-print(conf_matrix_test)
-
-```
+reasoning for using RF: No Multicollinearity: RF Perspective: RF models are generally robust to multicollinearity. They can handle correlated predictors without much issue.
 
 ```{r}
 selected_vars <- c("IMQ020", "RIAGENDR", "RIDAGEYR", "RIDRETH3", "DMDEDUC2", "INDFMPIR", "HEQ010")
@@ -236,18 +237,18 @@ for (col in c("IMQ020", "RIAGENDR", "RIDRETH3", "DMDEDUC2")) {
   if (length(new_levels) > 0) {
     test_data[, col] <- factor(test_data[, col], levels = c(levels_train, new_levels))
   }
+  
 }
 # Define logistic regression model
 model <- glm(HEQ010 ~ ., family = binomial, data = train_data)
 
 # Predictions on training set
 train_pred <- predict(model, newdata = train_data, type = "response")
-train_pred_class <- ifelse(train_pred > 0.017, 1, 0)
+train_pred_class <- ifelse(train_pred > 0.02, 1, 0)
 
 # Predictions on test set
 test_pred <- predict(model, newdata = test_data, type = "response")
-test_pred_class <- ifelse(test_pred > 0.017, 1, 0)
-
+test_pred_class <- ifelse(test_pred > 0.02, 1, 0)
 # Confusion matrix on training set
 train_conf_matrix <- confusionMatrix(as.factor(train_pred_class), as.factor(train_data$HEQ010))
 cat("Confusion Matrix - Training Set:\n")
