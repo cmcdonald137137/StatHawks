@@ -30,7 +30,7 @@ combined_data <- merge(merge(p_heq, p_imq, by = "SEQN", all.x = TRUE), p_demo, b
 
 # Filter the combined data
 filtered_data <- combined_data %>%
-  filter(!is.na(HEQ010))
+  filter(!is.na(HEQ010), HEQ010 != 7, HEQ010 != 9)
 
 
 # Print the first few rows of the filtered data
@@ -54,33 +54,24 @@ combined_data_67 <- merge(merge(p_heq_67, p_imq_67, by = "SEQN", all.x = TRUE), 
 
 # Filter the combined data
 filtered_data_67 <- combined_data_67 %>%
-  filter(!is.na(HEQ010))
-
-# Print the first few rows of the filtered data
-head(filtered_data_67)
-
-# Print the first few rows of the combined dataset
-head(combined_data_67)
-length(combined_data_67)
-length(combined_data)
-
-# Assuming combined_data_67 and combined_data have the same structure
-
-# Assuming combined_data_67 and combined_data have the same structure
-```
-
-```{r}
-
+  filter(!is.na(HEQ010), HEQ010 != 7, HEQ010 != 9)
 # Identify common columns
 common_columns <- intersect(names(combined_data_67), names(combined_data))
 
 # Add missing rows using bind_rows
 combined_data_full <- bind_rows(
-  select(combined_data_67, all_of(common_columns)),
-  select(combined_data, all_of(common_columns))
+  select(filtered_data_67, all_of(common_columns)),
+  select(filtered_data, all_of(common_columns))
 )
 
-combined_data_full <- combined_data_full
+
+combined_data_full$HEQ010[combined_data_full$HEQ010 == 2] <- 0
+
+table(combined_data_full$HEQ010)
+```
+
+```{r}
+
 
 # View the first few rows of the final combined dataset
 combined_data_full <- dplyr::select(combined_data_full, -RIDAGEMN) #all na's
@@ -89,13 +80,11 @@ combined_data_full <- dplyr::select(combined_data_full, -HEQ040, -HEQ030) #hepat
 combined_data_full <- dplyr::select(combined_data_full, -IMQ011, -IMQ070, -IMQ060, -IMQ090, -IMQ100, -DMDBORN4)
 combined_data_full <- dplyr::select(combined_data_full, -FIAPROXY, -FIAINTRP, -MIALANG, -MIAPROXY, -FIALANG, -SIAPROXY, -SIAINTRP, -MIAINTRP, -AIALANGA, -RIDEXPRG, -RIDRETH1, -SIALANG, -RIDEXMON)
 #HepA, HPVF, HPVM, age first hpv dose, Received HPV Doses 
-combined_data_full$HEQ010 <- ifelse(combined_data_full$HEQ010 == 1, 1, 0)
 # Bad Predictor: SDDSRVYR, RIDSTATR, RIDAGEMN(Less than 25 months old), RIDEXAGM(less than 240 months old), 
 # MDBORN4(country born in), DMDCITZN( citizenship status), SIAPROXY: Proxy respondant, FIALANG: language used in home,
 #Bad: FIAPROXY: proxy resident used in family interview, FIAINTRP: interpreter used, MIALANG: Language english or spanish, MIAPROXY: proxy respondent used udring the CPAI portion of the MEC interview, 
 #Questional predictors: DMDMARTL(Marital Status), RIDEXPRG(Pregnancy Status), DMDYRSUS(years lived in the USA),DMQMILIZ: Military Status, DMQADFC: Active duty serving, SIALANG: language used
 #Okay: DMDEDUC3: 6-19 year old education level, DMDEDUC2:20 or older education level, INDFMPIR: family income to poverty. 
-combined_data_full 
 # Filter the combined data
 #filtered_data_full <- combined_data_full %>%
   #filter(!is.na(HEQ010))
@@ -119,41 +108,48 @@ missing_counts <- colSums(is.na(combined_data_full))
 #SDMVSTRA - Masked variance pseudo-stratum
 #INDFMPIR - Ratio of family income to poverty 0 to 4.99	Range of Values 5	Value greater than or equal to 5.00 .	Missing
 # Specify the variables to be converted to factors
-factor_vars <- c("HEQ010", "HEQ020", "IMQ020", "SDDSRVYR", "RIDSTATR", "RIAGENDR", "RIDRETH3", "DMDEDUC2")
+combined_data_full <- dplyr::select(combined_data_full, -HEQ020) #Denotes received drugs for HEPB, sparse and correlated iwth HEQ010
+factor_vars <- c("HEQ010", "IMQ020", "SDDSRVYR", "RIDSTATR", "RIAGENDR", "RIDRETH3", "DMDEDUC2")
 
 # Convert the specified variables to factors
 combined_data_full[factor_vars] <- lapply(combined_data_full[factor_vars], factor)
-
-# Verify the changes
-str(combined_data_full)
+table(combined_data_full$HEQ010)
 ``` 
 
 
 ```{r}
 # Assuming combined_data_full is your dataset
-if (!requireNamespace("mice", quietly = TRUE)) {
-  install.packages("mice")
-}
-library(mice)
+#if (!requireNamespace("mice", quietly = TRUE)) {
+  #install.packages("mice")
+#}
+#library(mice)
 
 # Impute missing values
-imputed_data <- complete(mice(combined_data_full))
+#imputed_data <- complete(mice(combined_data_full))
 
 # Calculate the correlation matrix
-correlation_matrix <- cor(imputed_data, use = "complete.obs")
+#correlation_matrix <- cor(imputed_data, use = "complete.obs")
 
-if (!requireNamespace("corrplot", quietly = TRUE)) {
-  install.packages("corrplot")
-}
-library(corrplot)
+#if (!requireNamespace("corrplot", quietly = TRUE)) {
+# install.packages("corrplot")
+#}
+#library(corrplot)
 
 # Plot the correlation matrix
-corrplot(correlation_matrix, method = "color")
+#corrplot(correlation_matrix, method = "color")
 
 ```
 
 ```{r}
 library(glmnet)
+# Load required libraries
+install.packages("titanic")
+install.packages("caret")
+install.packages("Metrics")
+library(titanic)  # Assuming you are using the 'titanic' library for logistic regression
+library(caret)
+library(Metrics)
+
 ```
 
 ```{r}
@@ -164,152 +160,103 @@ exclude_columns <- c('SEQN', "SDDSRVYR", "RIDSTATR", "SDMVPSU", "SDMVSTRA")
 dfm <- combined_data_full[, !(names(combined_data_full) %in% exclude_columns)]
 
 # Verify the changes
-str(dfm)
+dfm
+table(dfm$HEQ010)
 ```
+
+
 ```{r}
+# Install and load the randomForest package
+install.packages("randomForest")
+library(randomForest)
+# Install and load the mice package
+install.packages("mice")
+library(mice)
+
+# Select variables of interest
+selected_vars <- c("IMQ020", "RIAGENDR", "RIDAGEYR", "RIDRETH3", "DMDEDUC2", "INDFMPIR", "HEQ010")
+
+# Subset data with selected variables
+rfdf <- dfm[selected_vars]
+
+# Set seed for reproducibility
 set.seed(5400)
 
-# Create train and test subsets
-train_index <- sample(1:nrow(dfm), 0.7 * nrow(dfm))
-train_dfm <- dfm[train_index, ]
-test_dfm <- dfm[-train_index, ]
-levels(train_dfm$IMQ020)
-levels(test_dfm$IMQ020)
-# Ensure that levels in test set match levels in training set
-test_dfm$IMQ020 <- factor(test_dfm$IMQ020, levels = levels(train_dfm$IMQ020))
-# Specify the variables
-selected_vars <- c("HEQ020", "IMQ020", "RIAGENDR", "RIDRETH3", "DMDEDUC2", "INDFMPIR", "RIDAGEYR")
+# Impute missing values using mice
+imputed_data <- mice(rfdf, method = "rf")  # You can use different imputation methods
 
-# Check if all selected variables are present in dfm
-missing_vars <- setdiff(selected_vars, colnames(dfm))
-
-if (length(missing_vars) > 0) {
-  stop(paste("The following variables are missing in dfm:", paste(missing_vars, collapse = ", ")))
-}
-
-# Convert response variable to factor with 2 levels
-train_dfm$HEQ010 <- as.factor(train_dfm$HEQ010)
-test_dfm$HEQ010 <- as.factor(test_dfm$HEQ010)
-
-# Fit logistic regression model on the training set
-logit_model <- glm(HEQ010 ~ ., data = train_dfm[, c("HEQ010", selected_vars), drop = FALSE], family = "binomial")
-
-# Predict on the test set
-test_probabilities <- predict(logit_model, newdata = test_dfm, type = "response")
-
-# Convert probabilities to binary predictions
-test_predictions <- ifelse(test_probabilities > 0.5, 1, 0)
-
-# Evaluate the model (you can replace this with your specific evaluation metric)
-# For example, you can use accuracy
-accuracy <- mean(test_predictions == as.numeric(test_dfm$HEQ010))
-
-# Display the accuracy
-cat("Accuracy on Test Set:", accuracy, "\n")
-
-# Display summary of the logistic regression model
-summary(logit_model)
-
-```
-# convert factor variables to dummies
-
-# # Loop through each variable to check if it is a factor for training dataset
-```{r}
-dummy_df <- data.frame()
-
-for (col in names(dfm)) {
-  if (is.factor(dfm[[col]])) {
-    # Replace missing values with a placeholder (e.g., "NA")
-    dfm[[col]] <- as.character(dfm[[col]])
-    dfm[[col]][is.na(dfm[[col]])] <- "NA"
-    
-    # Create dummy variables
-    dummies <- model.matrix(~ dfm[[col]] - 1)
-    
-    # Check the dimensions of the dummy variables
-    if (ncol(dummies) > 0) {
-      # Extract dummy variable columns
-      dummy_cols <- dummies[, -1, drop = FALSE]
-      
-      # Bind the dummy variables to the dummy dataframe
-      dummy_df <- cbind(dummy_df, dummy_cols)
-    }
-    
-    # Drop the original factor column
-    dfm[[col]] <- NULL
-  }
-}
-
-# Bind the dummy dataframe to the original dataframe
-dfm <- cbind(dfm, dummy_df)
-
-# Ensure the number of rows match
-n_rows_original <- nrow(dfm)
-n_rows_dummy <- nrow(dummy_df)
-
-# Check if the number of rows match
-if (n_rows_original != n_rows_dummy) {
-  stop("Number of rows in dummy variables does not match the original dataframe.")
-}
-
-
-# Ensure the number of rows match
-n_rows_original <- nrow(dfm)
-n_rows_dummy <- nrow(dummies)
-
-# Check if the number of rows match
-if (n_rows_original != n_rows_dummy) {
-  stop("Number of rows in dummy variables does not match the original dataframe.")
-}
+# Create an index for splitting the data
+train_index <- sample(1:nrow(rfdf), 0.8 * nrow(rfdf))
 
 # Split the data into training and testing sets
+train_data <- complete(imputed_data, action = 1)[train_index, ]
+test_data <- complete(imputed_data, action = 1)[-train_index, ]
+
+# Assuming your response variable is named "HEQ010"
+response_column <- "HEQ010"
+
+# Create a Random Forest model
+rf_model <- randomForest(formula = as.formula(paste(response_column, "~ .")), data = train_data)
+
+# Print the summary of the model
+print(rf_model)
+
+# Make predictions on the training set
+train_predictions <- predict(rf_model, newdata = train_data)
+
+# Print confusion matrix for the training set
+conf_matrix_train <- table(train_data$HEQ010, train_predictions)
+print(conf_matrix_train)
+
+# Make predictions on the test set
+test_predictions <- predict(rf_model, newdata = test_data)
+
+# Print confusion matrix for the test set
+conf_matrix_test <- table(test_data$HEQ010, test_predictions)
+print(conf_matrix_test)
+
+```
+
+```{r}
+selected_vars <- c("IMQ020", "RIAGENDR", "RIDAGEYR", "RIDRETH3", "DMDEDUC2", "INDFMPIR", "HEQ010")
+
+# Subset data with selected variables
+df_subset <- dfm[selected_vars]
+# Split the data into training (80%) and testing (20%) sets
 set.seed(5400)
-train_index <- sample(1:nrow(dfm), 0.7 * nrow(dfm))
-train_dfm <- dfm[train_index, ]
-test_dfm <- dfm[-train_index, ]
-
-# Prepare the data for the HEQ010 model
-train <- train_dfm
-test <- test_dfm
-head(train)
-```
-
-
-```{r}
-if (!requireNamespace("caret", quietly = TRUE)) {
-  install.packages("caret")
+train_index <- sample(1:nrow(df_subset), 0.7 * nrow(df_subset))
+train_data <- df_subset[train_index, ]
+test_data <- df_subset[-train_index, ]
+# Make sure categorical variables have the same levels in both train and test sets
+for (col in c("IMQ020", "RIAGENDR", "RIDRETH3", "DMDEDUC2")) {
+  levels_test <- levels(test_data[, col])
+  levels_train <- levels(train_data[, col])
+  new_levels <- setdiff(levels_test, levels_train)
+  
+  if (length(new_levels) > 0) {
+    test_data[, col] <- factor(test_data[, col], levels = c(levels_train, new_levels))
+  }
 }
-library(caret)
-if (!requireNamespace("ggplot2", quietly = TRUE)) {
-  install.packages("ggplot2")
-}
-library(ggplot2)
-if (!requireNamespace("lattice", quietly = TRUE)) {
-  install.packages("lattice")
-}
-library(lattice)
-cor_matrix <- cor(train[, -which(names(train) == "HEQ010")])
-high_corr_pairs <- findCorrelation(cor_matrix, cutoff = 0.8)
+# Define logistic regression model
+model <- glm(HEQ010 ~ ., family = binomial, data = train_data)
+
+# Predictions on training set
+train_pred <- predict(model, newdata = train_data, type = "response")
+train_pred_class <- ifelse(train_pred > 0.017, 1, 0)
+
+# Predictions on test set
+test_pred <- predict(model, newdata = test_data, type = "response")
+test_pred_class <- ifelse(test_pred > 0.017, 1, 0)
+
+# Confusion matrix on training set
+train_conf_matrix <- confusionMatrix(as.factor(train_pred_class), as.factor(train_data$HEQ010))
+cat("Confusion Matrix - Training Set:\n")
+print(train_conf_matrix)
+
+# Confusion matrix on test set
+test_conf_matrix <- confusionMatrix(as.factor(test_pred_class), as.factor(test_data$HEQ010))
+cat("\nConfusion Matrix - Test Set:\n")
+print(test_conf_matrix)
 ```
 
-```{r}
-#cor_matrix
-#high_corr_pairs
-zero_sd_vars <- sapply(train, function(x) sd(x, na.rm = TRUE)) == 0
-print(names(zero_sd_vars)[zero_sd_vars])
-```
-
-```{r}
-# Train the glm model for HEQ010 
-log_model <- glm(HEQ010 ~ ., family = binomial(link = "logit"), data = train, maxit = 10000000000)
-# Evaluate the model on the new test subset
-log_pred_HEQ010_test <- predict(log_model, newdata = test, type = "response")
-test$HEQ010 <- ifelse(log_pred_HEQ010_test > 0.5, 1, 0)
-
-# Calculate accuracy for the 'HEQ010 ' binary classification
-actual_HEQ010  <- test_dfm$HEQ010 
-predicted_HEQ010  <- test_dfm$HEQ010 
-accuracy_HEQ010  <- mean(actual_HEQ010  == predicted_HEQ010 )
-print(paste("Accuracy for 'HEQ010 ':", accuracy_HEQ010 ))
-```
 
