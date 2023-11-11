@@ -260,4 +260,63 @@ cat("\nConfusion Matrix - Test Set:\n")
 print(test_conf_matrix)
 ```
 
+```{r}
+# Install and load the ggplot2 package if not already installed
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+library(ggplot2)
+
+# Assuming dfm is your full dataset
+
+# Visualization 1: Pairwise Scatterplots
+pairs(dfm[, c("IMQ020", "RIDAGEYR", "INDFMPIR", "HEQ010")])
+
+# Visualization 2: Bar plot of the target variable
+ggplot(dfm, aes(x = factor(HEQ010))) +
+  geom_bar() +
+  labs(title = "Distribution of Target Variable")
+
+# Visualization 3: Boxplot of Age by Target Variable
+ggplot(dfm, aes(x = factor(HEQ010), y = RIDAGEYR)) +
+  geom_boxplot() +
+  labs(title = "Age Distribution by Target Variable")
+
+# Convert selected variables to numeric
+numeric_vars <- c("IMQ020", "RIDAGEYR", "INDFMPIR", "HEQ010")
+dfm[numeric_vars] <- lapply(dfm[numeric_vars], as.numeric)
+
+# Create correlation matrix
+cor_matrix <- cor(dfm[, numeric_vars])
+
+# Plot the correlation heatmap
+install.packages("reshape2")
+library(reshape2)
+# Convert selected variables to numeric
+numeric_vars <- c("IMQ020", "RIDAGEYR", "INDFMPIR", "HEQ010")
+dfm[numeric_vars] <- lapply(dfm[numeric_vars], as.numeric)
+
+# Create correlation matrix
+cor_matrix <- cor(dfm[, numeric_vars])
+
+# Plot the correlation heatmap
+library(reshape2)
+library(ggplot2)
+
+ggplot(data = melt(cor_matrix), aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  labs(title = "Correlation Heatmap")
+
+
+ggplot(data = melt(cor_matrix), aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  labs(title = "Correlation Heatmap")
+# Visualization 5: Distribution of Age by Target Variable
+ggplot(dfm, aes(x = RIDAGEYR, fill = factor(HEQ010))) +
+  geom_histogram(binwidth = 5, position = "dodge", alpha = 0.7) +
+  labs(title = "Distribution of Age by Target Variable")
+
+# Feel free to customize these visualizations based on your specific dataset and variables.
+```
+
 
