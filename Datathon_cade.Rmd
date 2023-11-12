@@ -102,6 +102,7 @@ factor_vars <- c("HEQ010", "IMQ020", "RIAGENDR", "RIDRETH3", "DMDEDUC2",'SEQN')
 combined_data_full[factor_vars] <- lapply(combined_data_full[factor_vars], factor)
 #table(combined_data_full$HEQ010)
 combined_data_full
+
 ``` 
 
 

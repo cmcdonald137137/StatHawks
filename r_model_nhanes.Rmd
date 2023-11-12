@@ -124,6 +124,7 @@ reasoning for using RF: No Multicollinearity: RF Perspective: RF models are gene
 
 ```{r}
 
+
 # Subset data with selected variables
 df_subset <- dfm
 # Split the data into training (70%) and testing (30%) sets
