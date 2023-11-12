@@ -15,6 +15,15 @@ if (!requireNamespace("haven", quietly = TRUE)) {
 library(dplyr)
 library(haven)
 
+library(glmnet)
+# Load required libraries
+install.packages("titanic")
+install.packages("caret")
+install.packages("Metrics")
+library(titanic)  # Assuming you are using the 'titanic' library for logistic regression
+library(caret)
+library(Metrics)
+
 # Specify the paths to your XPT files
 
 path_p_heq <- "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/P_HEQ.XPT"
@@ -115,92 +124,8 @@ factor_vars <- c("HEQ010", "IMQ020", "SDDSRVYR", "RIDSTATR", "RIAGENDR", "RIDRET
 combined_data_full[factor_vars] <- lapply(combined_data_full[factor_vars], factor)
 table(combined_data_full$HEQ010)
 ``` 
-```{r}
-# Previous Model from Computational
-selected_vars <- c("IMQ020", "RIAGENDR", "RIDAGEYR", "RIDRETH3", "DMDEDUC2", "INDFMPIR", "HEQ010")
-dfm <- combined_data_full[selected_vars]
 
-# Convert categorical variables to dummy/indicator variables
-dfm <- model.matrix(~ . - 1, data = dfm)
-colnames(dfm)[colnames(dfm) == "HEQ0101"] <- "HEQ010"
-# Assuming dfm is your full dataset
-set.seed(123)  # for reproducibility
-train_index <- sample(1:nrow(dfm), 0.7 * nrow(dfm))
 
-# Create new train and test subsets
-train_dfm <- dfm[train_index, ]
-train_dfm <- as.data.frame(train_dfm)
-test_dfm <- dfm[-train_index, ]
-test_dfm <- as.data.frame(test_dfm)
-head(test_dfm)
-test_heq <- subset(test_dfm, select = -c(HEQ010))
-log_model_heq <- glm(HEQ010 ~ ., family = binomial(link = "logit"), data = train_dfm)
-
-# Predict on the test set
-log_pred_heq_test <- predict(log_model_heq, newdata = test_dfm, type = "response")
-
-# Convert predicted probabilities to binary predictions
-threshold <- 0.02
-test_dfm$pred_heq <- ifelse(log_pred_heq_test > threshold, 1, 0)
-
-# Calculate accuracy for the 'heq' binary classification
-accuracy_heq <- mean(test_dfm$HEQ010 == test_dfm$pred_heq, na.rm = TRUE)
-print(paste("Accuracy for 'heq':", accuracy_heq))
-# Install and load the caret package if not already installed
-if (!requireNamespace("caret", quietly = TRUE)) {
-  install.packages("caret")
-}
-library(caret)
-
-# ... (previous code)
-
-# Calculate accuracy for the 'heq' binary classification
-accuracy_heq <- mean(test_dfm$HEQ010 == test_dfm$pred_heq, na.rm = TRUE)
-print(paste("Accuracy for 'heq':", accuracy_heq))
-
-# Create a confusion matrix
-conf_matrix_heq <- confusionMatrix(data = factor(test_dfm$pred_heq, levels = c(0, 1)),
-                                   reference = factor(test_dfm$HEQ010, levels = c(0, 1)))
-
-# Print the confusion matrix
-print("Confusion Matrix:")
-print(conf_matrix_heq)
-```
-
-```{r}
-# Assuming combined_data_full is your dataset
-#if (!requireNamespace("mice", quietly = TRUE)) {
-  #install.packages("mice")
-#}
-#library(mice)
-
-# Impute missing values
-#imputed_data <- complete(mice(combined_data_full))
-
-# Calculate the correlation matrix
-#correlation_matrix <- cor(imputed_data, use = "complete.obs")
-
-#if (!requireNamespace("corrplot", quietly = TRUE)) {
-# install.packages("corrplot")
-#}
-#library(corrplot)
-
-# Plot the correlation matrix
-#corrplot(correlation_matrix, method = "color")
-
-```
-
-```{r}
-library(glmnet)
-# Load required libraries
-install.packages("titanic")
-install.packages("caret")
-install.packages("Metrics")
-library(titanic)  # Assuming you are using the 'titanic' library for logistic regression
-library(caret)
-library(Metrics)
-
-```
 
 ```{r}
 # Specify the columns to be excluded
@@ -223,7 +148,7 @@ selected_vars <- c("IMQ020", "RIAGENDR", "RIDAGEYR", "RIDRETH3", "DMDEDUC2", "IN
 
 # Subset data with selected variables
 df_subset <- dfm[selected_vars]
-# Split the data into training (80%) and testing (20%) sets
+# Split the data into training (70%) and testing (30%) sets
 set.seed(5400)
 train_index <- sample(1:nrow(df_subset), 0.7 * nrow(df_subset))
 train_data <- df_subset[train_index, ]
