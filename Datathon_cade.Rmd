@@ -23,26 +23,36 @@ install.packages("Metrics")
 library(titanic)  # Assuming you are using the 'titanic' library for logistic regression
 library(caret)
 library(Metrics)
+# Install the randomForest package (if not already installed)
+if (!requireNamespace("randomForest", quietly = TRUE)) {
+  install.packages("randomForest")
+}
 
+# Load the randomForest package
+library(randomForest)
+
+```
+
+```{r}
 # Specify the paths to your XPT files
 
 path_p_heq <- "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/P_HEQ.XPT"
 path_p_imq <- "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/P_IMQ.XPT"
 path_p_demo <- "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/P_DEMO.XPT"
-
+path_p_whq <- "C:/Users/cadej/OneDrive/Documents/StatHawks/Nhanes Datathon Project/P_WHQ.XPT"
 p_heq <- haven::read_xpt(path_p_heq)
 p_imq <- haven::read_xpt(path_p_imq)
 p_demo <- haven::read_xpt(path_p_demo)
+p_whq <- haven::read_xpt(path_p_whq)
+p_whq <- dplyr::select(p_whq, SEQN, WHD010, WHD020)
+p_whq
 # Combine the datasets based on the SEQN column
 # You can use the merge function or dplyr's left_join function
 combined_data <- merge(merge(p_heq, p_imq, by = "SEQN", all.x = TRUE), p_demo, by = "SEQN", all.x = TRUE)
-
-# Filter the combined data
-filtered_data <- combined_data %>%
-  filter(!is.na(HEQ010), HEQ010 != 7, HEQ010 != 9)
+# Merge with p_whq
+combined_data <- merge(combined_data, p_whq, by = "SEQN", all.x = TRUE)
 
 
-# Print the first few rows of the filtered data
 head(filtered_data)
 
 # Print the first few rows of the combined dataset
@@ -54,89 +64,58 @@ head(combined_data)
 path_p_heq_67 <-  "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/HEQ_I_201617.XPT"
 path_p_imq_67<- "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/IMQ_I_201617.XPT"
 path_p_demo_67 <- "C:/Users/cadej/OneDrive - University of Iowa/Documents/Nhanes Datathon Project/DEMO_I_201617.XPT"
+path_p_whq_67 <- "C:/Users/cadej/OneDrive/Documents/StatHawks/Nhanes Datathon Project/WHQ_I_201617.XPT"
+
 p_heq_67 <- haven::read_xpt(path_p_heq_67)
 p_imq_67 <- haven::read_xpt(path_p_imq_67)
 p_demo_67 <- haven::read_xpt(path_p_demo_67)
+p_whq_67 <- haven::read_xpt(path_p_whq)
+p_whq_67 <- dplyr::select(p_whq_67, SEQN, WHD010, WHD020) #hepatitis C Measure
 # Combine the datasets based on the SEQN column
 # You can use the merge function or dplyr's left_join function
 combined_data_67 <- merge(merge(p_heq_67, p_imq_67, by = "SEQN", all.x = TRUE), p_demo_67, by = "SEQN", all.x = TRUE)
+combined_data_67 <- merge(combined_data_67, p_whq_67, by = "SEQN", all.x = TRUE)
 
 # Filter the combined data
-filtered_data_67 <- combined_data_67 %>%
-  filter(!is.na(HEQ010), HEQ010 != 7, HEQ010 != 9)
-# Identify common columns
+
 common_columns <- intersect(names(combined_data_67), names(combined_data))
 
-# Add missing rows using bind_rows
-combined_data_full <- bind_rows(
-  select(filtered_data_67, all_of(common_columns)),
-  select(filtered_data, all_of(common_columns))
-)
+# Extract columns from each data frame
+combined_data_common <- combined_data[, common_columns]
+combined_data_67_common <- combined_data_67[, common_columns]
 
+# Concatenate data frames vertically
+combined_data_full <- rbind(combined_data_common, combined_data_67_common)
 
+combined_data_full <- dplyr::select(combined_data_full, IMQ020, RIAGENDR, RIDAGEYR, RIDRETH3, DMDEDUC2, INDFMPIR, HEQ010, WHD010, WHD020, SEQN)
 combined_data_full$HEQ010[combined_data_full$HEQ010 == 2] <- 0
+# Assuming combined_data_full is your data frame
+combined_data_full <- combined_data_full %>%
+  filter(!is.na(HEQ010) & HEQ010 != 7 & HEQ010 != 9)
 
-table(combined_data_full$HEQ010)
+write.csv(combined_data_full, file = "NHANES.csv", row.names = FALSE)
 ```
-
 ```{r}
-
-
-# View the first few rows of the final combined dataset
-combined_data_full <- dplyr::select(combined_data_full, -RIDAGEMN) #all na's
-
-combined_data_full <- dplyr::select(combined_data_full, -HEQ040, -HEQ030) #hepatitis C Measure
-combined_data_full <- dplyr::select(combined_data_full, -IMQ011, -IMQ070, -IMQ060, -IMQ090, -IMQ100, -DMDBORN4)
-combined_data_full <- dplyr::select(combined_data_full, -FIAPROXY, -FIAINTRP, -MIALANG, -MIAPROXY, -FIALANG, -SIAPROXY, -SIAINTRP, -MIAINTRP, -AIALANGA, -RIDEXPRG, -RIDRETH1, -SIALANG, -RIDEXMON)
-#HepA, HPVF, HPVM, age first hpv dose, Received HPV Doses 
-# Bad Predictor: SDDSRVYR, RIDSTATR, RIDAGEMN(Less than 25 months old), RIDEXAGM(less than 240 months old), 
-# MDBORN4(country born in), DMDCITZN( citizenship status), SIAPROXY: Proxy respondant, FIALANG: language used in home,
-#Bad: FIAPROXY: proxy resident used in family interview, FIAINTRP: interpreter used, MIALANG: Language english or spanish, MIAPROXY: proxy respondent used udring the CPAI portion of the MEC interview, 
-#Questional predictors: DMDMARTL(Marital Status), RIDEXPRG(Pregnancy Status), DMDYRSUS(years lived in the USA),DMQMILIZ: Military Status, DMQADFC: Active duty serving, SIALANG: language used
-#Okay: DMDEDUC3: 6-19 year old education level, DMDEDUC2:20 or older education level, INDFMPIR: family income to poverty. 
-# Filter the combined data
-#filtered_data_full <- combined_data_full %>%
-  #filter(!is.na(HEQ010))
-#filtered_data_full
-missing_counts <- colSums(is.na(combined_data_full))
-
-# Display the counts of missing values for each column
-
-#SEQN ID Number
-#HEQ010 Ever told if had HEPB
-#HEQ020 Ever diagnosed HEPB Drugs
-#IMQ020 HEPB Vaccination Status
-#SDDSRVYR Data release cycle
-#RIDSTATR Interview Status
-#RIAGENDR Gender 1=male 2= female
-#RIDAGEYR age at screening
-#RIDRETH1 RACE, asian not included, RIDRETH3 RACE asian included take out ridreth1
-#RIDEXMON - Six month time period 1	November 1 through April 30 2	May 1 through October 31 #BAD PREDICTOR
-#DMDEDUC2 Education level adults 20+ 
-#SDMVPSU - Masked variance pseudo-PSU
-#SDMVSTRA - Masked variance pseudo-stratum
-#INDFMPIR - Ratio of family income to poverty 0 to 4.99	Range of Values 5	Value greater than or equal to 5.00 .	Missing
-# Specify the variables to be converted to factors
-combined_data_full <- dplyr::select(combined_data_full, -HEQ020) #Denotes received drugs for HEPB, sparse and correlated iwth HEQ010
-factor_vars <- c("HEQ010", "IMQ020", "SDDSRVYR", "RIDSTATR", "RIAGENDR", "RIDRETH3", "DMDEDUC2")
-
+combined_data_full
+factor_vars <- c("HEQ010", "IMQ020", "RIAGENDR", "RIDRETH3", "DMDEDUC2",'SEQN')
 # Convert the specified variables to factors
 combined_data_full[factor_vars] <- lapply(combined_data_full[factor_vars], factor)
-table(combined_data_full$HEQ010)
+#table(combined_data_full$HEQ010)
+combined_data_full
 ``` 
+
 
 
 
 ```{r}
 # Specify the columns to be excluded
-exclude_columns <- c('SEQN', "SDDSRVYR", "RIDSTATR", "SDMVPSU", "SDMVSTRA")
+exclude_columns <- c('SEQN')
 
 # Create a new data frame excluding the specified columns
 dfm <- combined_data_full[, !(names(combined_data_full) %in% exclude_columns)]
 
 # Verify the changes
 dfm
-table(dfm$HEQ010)
 ```
 
 ###Selecting the best model
@@ -144,19 +123,26 @@ table(dfm$HEQ010)
 reasoning for using RF: No Multicollinearity: RF Perspective: RF models are generally robust to multicollinearity. They can handle correlated predictors without much issue.
 
 ```{r}
-selected_vars <- c("IMQ020", "RIAGENDR", "RIDAGEYR", "RIDRETH3", "DMDEDUC2", "INDFMPIR", "HEQ010")
 
 # Subset data with selected variables
-df_subset <- dfm[selected_vars]
+df_subset <- dfm
 # Split the data into training (70%) and testing (30%) sets
 set.seed(5400)
 train_index <- sample(1:nrow(df_subset), 0.7 * nrow(df_subset))
 train_data <- df_subset[train_index, ]
 test_data <- df_subset[-train_index, ]
+
+```
+
+
+```{r}
 # Make sure categorical variables have the same levels in both train and test sets
 for (col in c("IMQ020", "RIAGENDR", "RIDRETH3", "DMDEDUC2")) {
+  print(col)
   levels_test <- levels(test_data[, col])
   levels_train <- levels(train_data[, col])
+  print(levels_test)
+  print(levels_train)
   new_levels <- setdiff(levels_test, levels_train)
   
   if (length(new_levels) > 0) {
@@ -164,6 +150,8 @@ for (col in c("IMQ020", "RIAGENDR", "RIDRETH3", "DMDEDUC2")) {
   }
   
 }
+
+
 # Define logistic regression model
 model <- glm(HEQ010 ~ ., family = binomial, data = train_data)
 
@@ -176,13 +164,61 @@ test_pred <- predict(model, newdata = test_data, type = "response")
 test_pred_class <- ifelse(test_pred > 0.02, 1, 0)
 # Confusion matrix on training set
 train_conf_matrix <- confusionMatrix(as.factor(train_pred_class), as.factor(train_data$HEQ010))
-cat("Confusion Matrix - Training Set:\n")
+cat("Confusion Matrix - Training Set:/n")
 print(train_conf_matrix)
 
 # Confusion matrix on test set
 test_conf_matrix <- confusionMatrix(as.factor(test_pred_class), as.factor(test_data$HEQ010))
 cat("\nConfusion Matrix - Test Set:\n")
 print(test_conf_matrix)
+```
+
+```{r}
+# Assuming your response variable is named "HEQ010"
+response_column <- "HEQ010"
+# Assuming dfm is your dataset
+# Impute missing values with mean for numeric columns
+# Assuming dfm is your dataset
+library(mice)
+
+# Impute missing values using mice
+imputed_data <- mice(dfm, method = "pmm", m = 5, seed = 123)  # You can adjust 'm' based on the number of imputations you want
+
+# Extract the completed datasets
+imputed_data <- complete(imputed_data, action = "long")
+
+# Convert to data frame
+imputed_data <- as.data.frame(imputed_data)
+```
+
+```{r}
+# Set seed for reproducibility
+set.seed(5400)
+# Sample indices for the training set
+train_index <- sample(1:nrow(imputed_data), 0.7 * nrow(imputed_data))
+
+# Split the data into training and testing sets
+train_data <- imputed_data[train_index, ]
+test_data <- imputed_data[-train_index, ]
+
+# Create the random forest model
+response_column <- "HEQ010"
+rf_formula <- as.formula(paste(response_column, "~ ."))
+rf_model <- randomForest(formula = rf_formula, data = train_data)
+```
+
+```{r}
+# Print the summary of the model
+print(rf_model)
+
+# Make predictions on the test set
+rf_predictions <- predict(rf_model, newdata = test_data)
+# Convert predicted probabilities to binary predictions using a threshold
+threshold <- 0.3
+rf_binary_predictions <- ifelse(rf_predictions > threshold, 1, 0)
+# Confusion matrix for binary predictions
+conf_matrix <- table(Actual = test_data$HEQ010, Predicted = rf_binary_predictions)
+print(conf_matrix)
 ```
 
 ```{r}
